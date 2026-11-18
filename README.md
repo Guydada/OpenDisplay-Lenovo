@@ -1,45 +1,75 @@
-# OpenDisplay Lenovo
+<h1><img src="Docs/images/lenovo-banner.svg" width="100%" alt="OpenDisplay Lenovo — menu-bar lighting for the Legion Y34wz-30"></h1>
 
-OpenDisplay Lenovo adds macOS controls for the rear light strip on the **Lenovo Legion Y34wz-30**. It is a personal fork of [aquitaine/OpenDisplay 0.11.8](https://github.com/aquitaine/OpenDisplay/tree/v0.11.8). Lenovo’s Windows utility can set individual strip colors. This fork brings that control into the same Mac menu that already handles display brightness and volume.
+[![Apple Silicon · macOS 14+](https://img.shields.io/badge/Apple_Silicon-macOS_14%2B-236878?logo=apple&logoColor=white)](#install-on-your-mac) [![Install with Homebrew](https://img.shields.io/badge/Homebrew-source_install-805b27?logo=homebrew&logoColor=white)](#install-on-your-mac) [![Fork of OpenDisplay](https://img.shields.io/badge/fork_of-OpenDisplay-48578c?logo=github&logoColor=white)](https://github.com/aquitaine/OpenDisplay/tree/v0.11.8) [![GPL-3.0-or-later license](https://img.shields.io/badge/license-GPL--3.0--or--later-35694b)](LICENSE)
 
-![Lighting row with its live color picker open](Docs/images/lenovo-color-picker.png)
+**Change the light behind your Lenovo Legion Y34wz-30 from the Mac menu bar.** Click a swatch for any color, give six zones different colors, or let the strip move with your music. This personal fork brings controls from Lenovo’s Windows utility into OpenDisplay alongside display brightness and volume.
 
-## Using the monitor
+[Install on your Mac](#install-on-your-mac) · [Connect the monitor](#connect-the-monitor) · [Troubleshooting](#troubleshooting)
 
-Connect the monitor’s **USB upstream data port** to the Mac as well as its video input. A USB-C connection that carries both works, or use HDMI/DisplayPort for video and a separate upstream USB cable. If the monitor’s hub is switched to a different computer, that computer owns the lighting controller.
+<a href="Docs/images/lenovo-color-picker.png"><img src="Docs/images/lenovo-color-picker.png" width="288" alt="Displays menu for the Y34wz-30 with the strip color picker expanded below the volume slider"></a> <a href="Docs/images/lenovo-settings.png"><img src="Docs/images/lenovo-settings.png" width="450" alt="Lenovo Legion settings with four preset palettes, six individual zone colors, a saved palette, and custom wave controls"></a>
 
-| Control | What it does |
+*The Displays menu and the Lenovo Legion settings card, shown with sample settings. Click either screenshot to enlarge it.*
+
+## Install on your Mac
+
+You’ll need an **Apple Silicon Mac** (M-series), **macOS 14 or later**, **Homebrew**, and the **full Xcode app, version 16 or later**. Homebrew compiles the app on your Mac. If you just installed Xcode, open it once to finish setup. [Get Homebrew](https://brew.sh/) · [Get Xcode](https://apps.apple.com/app/xcode/id497799835)
+
+1. Quit OpenDisplay if it’s already running.
+2. Open **Terminal**, paste these three lines, and press **Return**.
+
+   ```sh
+   brew tap guydada/display https://github.com/Guydada/OpenDisplay-Lenovo
+   brew install guydada/display/opendisplay-lenovo
+   open "$(brew --prefix opendisplay-lenovo)/libexec/OpenDisplay Lenovo.app"
+   ```
+
+3. Click the **display icon** in the macOS menu bar. Click **Y34wz-30** to expand its card if the sliders are hidden.
+
+## Connect the monitor
+
+The strip receives colors over **USB**. Choose the row that matches your video cable.
+
+| How the Mac gets a picture | What the lighting needs |
 | --- | --- |
-| Color swatch | Opens an inline picker. Drag to any color or type a six-digit hex value. The strip changes immediately. |
-| Slider | Sets strip brightness independently of the display backlight. |
-| Palette button | Recalls a built-in or saved six-zone palette. Create, name, edit, or delete palettes under **Settings → Displays → Lenovo Legion → Saved palettes**. |
-| Waveform button | Selects steady light, moving effects, a custom wave, or an audio meter. The audio meter follows Mac playback and requires macOS 14.2 or later. |
-| Lenovo Legion settings | Controls game mode, HDR and dynamic contrast over the video connection using DDC/CI. |
+| USB-C | A USB-C cable that carries both video and data from the Mac to the monitor’s upstream USB-C port. |
+| HDMI or DisplayPort | Keep the video cable. Add a USB data cable between the Mac and the monitor’s square **USB-B upstream** port. |
 
-OpenDisplay’s existing display controls, CLI and recovery tools come from upstream. The fork adds support for one connected Y34wz-30. Keyboard routing stays with the physical KVM. Solid red, six simultaneous colors, a moving Marquee and playback-reactive lighting were confirmed on hardware. Zone orientation, persistence across sleep, and some picture modes remain unverified. [Protocol and hardware results](Docs/Compatibility/Lenovo-Y34wz-30.md)
+If two computers share the monitor, its USB hub must be connected to the Mac running the app. The monitor’s physical KVM handles the keyboard and mouse.
 
-## Install with Homebrew
+## Try the lights
 
-Use an Apple Silicon Mac running macOS 14 or later, Homebrew and full Xcode 16 or later. Homebrew builds the reviewed source locally with Xcode. Quit any running copy of OpenDisplay before opening the fork. Both use the same app identifier and preference store.
+| To do this | Use this control |
+| --- | --- |
+| **Pick any color** | Click the **leftmost swatch** in the lighting row below volume. Drag in the color field or type a six-digit hex color. The strip changes immediately. |
+| **Dim the strip** | Drag the slider beside the swatch. The display backlight has its own slider above. |
+| **Try six colors** | Click the **palette icon** and choose **Spectrum**. To make your own, open **Settings → Displays → Lenovo Legion → Saved palettes → Add palette…** |
+| **Add motion** | Click the **waveform icon** and choose **Marquee**. Choose **Steady** to hold the colors still. **Custom wave** adds speed and direction controls in Settings. |
+| **Follow music** | Play audio on the Mac, then choose **waveform → Audio meter**. Allow **System Audio Recording** if prompted. Requires macOS 14.2 or later. |
+| **Change the picture** | Open **Settings → Displays → Lenovo Legion** for game mode, HDR and dynamic contrast. These controls use the video connection. |
 
-```sh
-brew tap guydada/display https://github.com/Guydada/OpenDisplay-Lenovo
-brew install guydada/display/opendisplay-lenovo
-open "$(brew --prefix opendisplay-lenovo)/libexec/OpenDisplay Lenovo.app"
-```
+## Troubleshooting
 
-If you are moving from the upstream Homebrew cask, first verify that the fork opens. Then run `brew uninstall --cask aquitaine/tap/opendisplay` to remove the previous app. A normal uninstall preserves the shared settings. The cask’s `--zap` option deletes them.
-
-The formula also installs the `opendisplay-lenovo` CLI. These commands check the USB connection and preview a color report without changing the strip. Use the Lenovo selector from `opendisplay-lenovo list` if it is a secondary display.
+**I have a picture, but the lighting controls are gray.** Check the USB data cable and which computer owns the monitor’s USB hub. Open the lighting controls again and click **Check USB**. With the Lenovo as the main display, this Terminal command checks whether the Mac can see its lighting controller.
 
 ```sh
 opendisplay-lenovo lenovo main lighting-status
-opendisplay-lenovo lenovo main color 123456 42 --dry-run
 ```
 
-For updates, quit the app, run `brew update && brew upgrade opendisplay-lenovo`, then reopen it. To remove the package, use `brew uninstall opendisplay-lenovo`. The fork uses local ad hoc signing. macOS may ask again for feature permissions after an upgrade.
+If the Lenovo is a secondary display, run `opendisplay-lenovo list` and replace `main` with its display selector.
 
-## Build and test from a checkout
+**Audio meter stays dark.** Play something audible on the Mac. In **System Settings → Privacy & Security → Screen & System Audio Recording**, check that OpenDisplay has permission. The meter measures playback volume in memory. [Privacy and security](SECURITY.md)
+
+<details>
+<summary><strong>Update, uninstall, or switch from upstream OpenDisplay</strong></summary>
+
+Quit the app, run `brew update && brew upgrade opendisplay-lenovo`, then reopen it with the `open` command above. To remove the fork, run `brew uninstall opendisplay-lenovo`. The local build uses ad hoc signing, so macOS may ask for feature permissions again after an update.
+
+The fork and upstream OpenDisplay share settings and an app identifier. Once you’ve opened the fork successfully, you can remove the upstream cask with `brew uninstall --cask aquitaine/tap/opendisplay`. A normal uninstall preserves shared settings. Adding `--zap` deletes them.
+
+</details>
+
+<details>
+<summary><strong>Build from source and run the tests</strong></summary>
 
 ```sh
 git clone https://github.com/Guydada/OpenDisplay-Lenovo.git
@@ -51,10 +81,12 @@ scripts/test-lenovo-lighting.sh
 open dist/OpenDisplay.app
 ```
 
-The lighting tests use a simulated USB writer and isolated preferences. They exercise the exact report bytes, palette storage, effects, audio level handling, and the menu’s click-and-drag behavior. The AppKit test needs a logged-in macOS desktop.
+The lighting tests use a simulated USB writer and isolated preferences. They cover report bytes, saved palettes, effects, audio levels, and live picker gestures. The menu interaction test needs a logged-in macOS desktop. To preview a color report from the installed CLI, run `opendisplay-lenovo lenovo main color 123456 42 --dry-run`.
 
-## Project and privacy
+</details>
 
-This is a hardware-specific hobby fork, maintained as time permits. The public repository distributes source through Homebrew. Verification runs locally. Strip control uses the local USB device and the audio effect reduces playback samples to a volume level in memory. [Security policy and private reporting](SECURITY.md)
+## About this fork
 
-OpenDisplay and this fork are licensed under GPL-3.0-or-later. Credit for the display engine, app and recovery architecture belongs to the upstream contributors. The Lenovo picture controls use the published Y34wz-30 register reference. [License](LICENSE) · [Upstream OpenDisplay](https://github.com/aquitaine/OpenDisplay) · [Monitor register reference](https://github.com/Ferroman/lenovo-y34wz-cli/blob/28705fe98007a24f11d0eea9462b1c1228d02806/docs/reference.md)
+Built for one connected **Lenovo Legion Y34wz-30** and maintained as a hobby project. Hardware checks confirmed solid red, multiple colors at once, a moving Marquee, and playback-reactive lighting. Exact zone orientation, persistence across sleep, and some picture modes remain unverified. [Hardware results and USB protocol](Docs/Compatibility/Lenovo-Y34wz-30.md)
+
+The Mac app, display engine, CLI and recovery tools come from **aquitaine/OpenDisplay 0.11.8**. This fork adds Lenovo monitor support and a Homebrew source package. The picture settings draw on the published Y34wz-30 register reference. [Upstream project](https://github.com/aquitaine/OpenDisplay/tree/v0.11.8) · [Register reference](https://github.com/Ferroman/lenovo-y34wz-cli/blob/28705fe98007a24f11d0eea9462b1c1228d02806/docs/reference.md) · [GPL-3.0-or-later license](LICENSE)

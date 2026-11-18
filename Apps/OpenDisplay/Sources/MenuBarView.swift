@@ -134,19 +134,7 @@ struct MenuBarView: View {
                           enabled: !model.busy) { Task { await model.reconnectAll() } }
             MenuActionRow(title: "Displays & arrangement…", systemImage: "rectangle.3.group",
                           showChevron: true) { showSettings() }
-            updatesRow
         }
-    }
-
-    /// The updates row reflects the updater's live phase — idle, checking, up to date, a badged
-    /// version, or an install in flight — and every clickable variant does the same one thing: hand
-    /// over to Sparkle, which downloads, verifies, installs, and relaunches. Wording, icon, and
-    /// badge come from `SoftwareUpdatePolicy` so this row and the About window can't drift apart.
-    private var updatesRow: some View {
-        let presentation = SoftwareUpdatePolicy.presentation(for: model.updatePhase)
-        return MenuActionRow(title: presentation.title, systemImage: presentation.systemImage,
-                             badge: presentation.badge, showChevron: false,
-                             enabled: !presentation.showsProgress) { model.checkForUpdates() }
     }
 
     /// Asks the app delegate to open Settings. The delegate owns that window (AppKit, not SwiftUI's
@@ -176,6 +164,11 @@ private struct DisplayCard: View {
             if isExpanded && display.isActive {
                 brightnessRow
                 if let volume = model.ddcControl(.volume, for: display) { volumeRow(volume) }
+                #if !PUBLIC_API_ONLY
+                if let lighting = model.stripLighting(for: display) {
+                    LenovoStripControls(lighting: lighting, compact: true)
+                }
+                #endif
                 chipRow
                 quickActions
                 MenuActionRow(title: "Display settings…", systemImage: "slider.horizontal.3",

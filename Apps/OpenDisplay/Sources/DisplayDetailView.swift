@@ -4,6 +4,9 @@ import DisplayDomain
 import OpenDisplayDesignSystem
 import SwiftUI
 import TopologyCore
+#if !PUBLIC_API_ONLY
+import ExperimentalLifecycleProvider
+#endif
 
 /// The per-display detail pane (Settings → Displays). This is where everything that used to crowd the
 /// menu-bar card now lives: resolution & refresh, appearance (rotation/colour), hardware controls,
@@ -33,6 +36,11 @@ struct DisplayDetailView: View {
                 ResolutionCard(display: display)
                 AppearanceCard(display: display)
                 if display.displayClass != .builtIn { ControlsCard(display: display) }
+                #if !PUBLIC_API_ONLY
+                if display.isActive, let cgID = display.cgDisplayID, ExternalDisplayDDC.isLenovoY34wz(cgID) {
+                    LenovoMonitorCard(display: display).id(display.recordID)
+                }
+                #endif
                 DimmingCard(display: display)
                 UseAsCard(display: display)
                 IdentityCard(display: display)
@@ -346,6 +354,60 @@ private struct AppearanceCard: View {
 
 // MARK: - Hardware controls (DDC, external only)
 
+#if !PUBLIC_API_ONLY
+private struct LenovoMonitorCard: View {
+    @EnvironmentObject private var model: AppModel
+    let display: DisplayObservation
+    @State private var sending = false
+    @State private var result: String?
+    @State private var values: [LenovoPictureSetting: Int] = [:]
+    var body: some View {
+        ODCard(title: "Lenovo Legion") {
+            ForEach(LenovoPictureSetting.allCases, id: \.self) { setting in
+                ODRow(setting.label) {
+                    let current = values[setting]
+                    Menu(setting.options.first { $0.code == current }?.label ?? current.map { "Code \($0)" } ?? "Unavailable") {
+                        ForEach(setting.options, id: \.code) { option in
+                            Button(option.label) {
+                                submit {
+                                    guard let controller = await model.lenovoController(for: display),
+                                          await controller.setLenovoSetting(setting, to: option.code) else {
+                                        return "Couldn’t send \(setting.label.lowercased())."
+                                    }
+                                    let actual = await controller.readLenovoSetting(setting)
+                                    values[setting] = actual
+                                    return actual == option.code ? nil : "The monitor did not confirm \(option.label)."
+                                }
+                            }
+                        }
+                    }.disabled(current == nil)
+                }
+                ODDivider()
+            }
+            if let lighting = model.stripLighting(for: display) {
+                LenovoStripControls(lighting: lighting, compact: false)
+            }
+            if let result { Text(result).font(.caption).foregroundStyle(.secondary) }
+        }
+        .disabled(sending)
+        .task(id: display.recordID) {
+            guard let controller = await model.lenovoController(for: display) else { return }
+            for setting in LenovoPictureSetting.allCases {
+                values[setting] = await controller.readLenovoSetting(setting)
+            }
+        }
+    }
+
+    private func submit(_ action: @escaping @MainActor () async -> String?) {
+        sending = true
+        Task {
+            result = await action()
+            sending = false
+        }
+    }
+}
+#endif
+
 private struct ControlsCard: View {
     @EnvironmentObject private var model: AppModel
     let display: DisplayObservation
@@ -404,8 +466,8 @@ private struct ControlsCard: View {
             #endif
             ODDivider()
             ODRow("Input source") {
-                Menu(model.inputSource[display.recordID].map { model.inputName($0) } ?? "—") {
-                    ForEach(AppModel.standardInputs, id: \.code) { input in
+                Menu(model.inputSource[display.recordID].map { model.inputName($0, for: display) } ?? "—") {
+                    ForEach(model.inputs(for: display), id: \.code) { input in
                         Button(input.name) { model.setInputSource(input.code, for: display) }
                     }
                 }

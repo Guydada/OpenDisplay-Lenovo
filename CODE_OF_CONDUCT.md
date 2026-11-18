@@ -25,10 +25,4 @@ permission, and other conduct reasonably considered inappropriate in a professio
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the
-maintainers at `conduct@opendisplay.example` *(placeholder — replace before public launch)*.
-All complaints will be reviewed and investigated promptly and fairly. Maintainers will
-respect the privacy and security of the reporter.
-
-Maintainers who do not follow or enforce this Code of Conduct in good faith may face
-temporary or permanent repercussions as determined by the project's maintainer council.
+Use GitHub’s reporting tools for abusive content or harassment. Reports go directly to GitHub. [Reporting abuse on GitHub](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam)

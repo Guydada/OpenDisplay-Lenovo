@@ -1,4 +1,10 @@
-# Changelog
+# OpenDisplay Lenovo changelog
+
+## 1.0.0
+
+First source distribution of the Lenovo fork, based on OpenDisplay 0.11.8. Adds the Y34wz-30 strip color picker, saved six-zone palettes, USB motion and playback audio effects, and model-specific picture controls.
+
+## Upstream history
 
 All notable changes to OpenDisplay are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows

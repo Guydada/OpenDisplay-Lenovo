@@ -2,17 +2,14 @@
 import AppKit
 import OpenDisplayDesignSystem
 import SwiftUI
-import TopologyCore
 
 /// Custom About window, replacing `orderFrontStandardAboutPanel`. The standard panel only shows
 /// the icon + version; this one adds what people actually come for — the running version (selectable
-/// for bug reports), an update check, and links to the project. Accessibility: semantic fonts (respect
+/// for bug reports), and links to the project. Accessibility: semantic fonts (respect
 /// the user's text-size setting), real `Link` controls (focusable, VoiceOver-labelled), and the
 /// decorative icon hidden from assistive tech.
 struct AboutView: View {
-    @EnvironmentObject private var model: AppModel
-
-    private static let repo = "https://github.com/aquitaine/OpenDisplay"
+    private static let repo = "https://github.com/Guydada/OpenDisplay-Lenovo"
 
     /// A single project link shown both in this window and in Settings → About, so the two surfaces
     /// can never drift apart on titles, icons, or destinations.
@@ -25,8 +22,8 @@ struct AboutView: View {
 
     /// The project links AboutView offers, reused verbatim by the Settings → About card.
     static let projectLinks: [AboutLink] = [
-        AboutLink(title: "Website", systemImage: "globe", url: URL(string: repo)!),
-        AboutLink(title: "Release notes", systemImage: "doc.text", url: URL(string: "\(repo)/releases")!),
+        AboutLink(title: "OpenDisplay Lenovo on GitHub", systemImage: "globe", url: URL(string: repo)!),
+        AboutLink(title: "Upstream OpenDisplay", systemImage: "arrow.triangle.branch", url: URL(string: "https://github.com/aquitaine/OpenDisplay")!),
         AboutLink(title: "Report an issue", systemImage: "ladybug", url: URL(string: "\(repo)/issues/new")!),
         AboutLink(title: "License (GPL-3.0)", systemImage: "checkmark.seal",
                   url: URL(string: "\(repo)/blob/main/LICENSE")!),
@@ -46,7 +43,7 @@ struct AboutView: View {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable().frame(width: 64, height: 64)
                 .accessibilityHidden(true)
-            Text("OpenDisplay")
+            Text("OpenDisplay Lenovo")
                 .font(.title2.weight(.semibold))
             Text("Free, open-source display control for macOS.")
                 .font(.callout).foregroundStyle(.secondary)
@@ -58,7 +55,6 @@ struct AboutView: View {
                 .textSelection(.enabled)
                 .accessibilityLabel("Version \(Self.version), build \(Self.build)")
                 .padding(.top, 2)
-            UpdateCheckStatusView()
 
             Divider().padding(.vertical, ODSpacing.xs)
 
@@ -89,33 +85,6 @@ struct AboutView: View {
         }
         .foregroundStyle(ODColor.accent)
         .accessibilityHint("Opens in your browser")
-    }
-}
-
-/// Mirrors the menu's update row: work in flight shows a spinner, everything else is a button that
-/// hands over to Sparkle (check → download → verify → install → relaunch). Shared by the About window
-/// and the Settings → About card, and it reads the same `SoftwareUpdatePolicy` presentation the menu
-/// row does, so all three surfaces say the same thing about the same phase.
-struct UpdateCheckStatusView: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        let presentation = SoftwareUpdatePolicy.presentation(for: model.updatePhase)
-        if presentation.showsProgress {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text(presentation.combinedTitle).font(.callout).foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .combine)
-        } else {
-            Button {
-                model.checkForUpdates()
-            } label: {
-                Label(presentation.combinedTitle, systemImage: presentation.systemImage)
-            }
-            .controlSize(.small)
-            .accessibilityHint("Checks for a new version, then downloads and installs it")
-        }
     }
 }
 #endif

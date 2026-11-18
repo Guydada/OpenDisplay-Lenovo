@@ -34,6 +34,22 @@ public actor ExternalDisplayDDC {
         case power = 0xD6
     }
 
+    /// Y34wz-30 gaming light modes verified by Ferroman/lenovo-y34wz-cli.
+    public enum LenovoAmbientLightEffect: Int, CaseIterable, Codable, Sendable {
+        case off = 0, breathing, flashing, marquee, rainbow, fireworks, starry, rhythm
+
+        public var label: String { String(describing: self).capitalized }
+    }
+
+    private static let lenovoVendor = 0x30AE // EDID "LEN"
+    private static let legionY34wzProduct = 0x67B0
+    private let supportsLenovoSettings: Bool
+
+    public nonisolated static func isLenovoY34wz(_ displayID: CGDirectDisplayID) -> Bool {
+        CGDisplayVendorNumber(displayID) == lenovoVendor
+            && CGDisplayModelNumber(displayID) == legionY34wzProduct
+    }
+
     private typealias CreateFn = @convention(c) (CFAllocator?, io_service_t) -> Unmanaged<AnyObject>?
     private typealias WriteFn = @convention(c) (AnyObject, UInt32, UInt32, UnsafePointer<UInt8>?, UInt32) -> Int32
     private typealias ReadFn = @convention(c) (AnyObject, UInt32, UInt32, UnsafeMutablePointer<UInt8>?, UInt32) -> Int32
@@ -145,7 +161,8 @@ public actor ExternalDisplayDDC {
         let create = unsafeBitCast(createPtr, to: CreateFn.self)
         writeFn = unsafeBitCast(writePtr, to: WriteFn.self)
         readFn = unsafeBitCast(readPtr, to: ReadFn.self)
-        guard let svc = Self.avService(for: displayID) else { return nil }
+        guard let (svc, supportsLenovoSettings) = Self.avService(for: displayID) else { return nil }
+        self.supportsLenovoSettings = supportsLenovoSettings
         guard let av = create(kCFAllocatorDefault, svc) else { IOObjectRelease(svc); return nil }
         var entryID: UInt64 = 0
         IORegistryEntryGetRegistryEntryID(svc, &entryID)
@@ -256,12 +273,42 @@ public actor ExternalDisplayDDC {
     /// and pacing are shared, so it can't interleave with them.
     @discardableResult
     public func write(vcp code: UInt8, _ value: Int, sourceAddress: UInt8) async -> Bool {
-        let packet = Self.setVCPPacket(vcp: code, value: value, sourceAddress: sourceAddress)
         await lockBus()
+        defer { unlockBus() }
+        return await writeLocked(vcp: code, value, sourceAddress: sourceAddress)
+    }
+
+    /// Holds the bus across both writes so a poll or slider can't consume the feature selection.
+    /// Success means both writes reached the bus. The panel has no reliable effect readback.
+    public func setLenovoAmbientLight(_ effect: LenovoAmbientLightEffect) async -> Bool {
+        guard supportsLenovoSettings else { return false }
+        await lockBus()
+        defer { unlockBus() }
+        let source = UInt8(Self.i2cSource)
+        guard isBound, await writeLocked(vcp: 0xF8, 0x001D, sourceAddress: source) else { return false }
+        await paceBus()
+        // After a system sleep the panel's selected index may have expired.
+        guard isBound, DispatchTime.now().uptimeNanoseconds - lastTransactionUptime < 500_000_000 else { return false }
+        return await writeLocked(vcp: 0xF7, effect.rawValue, sourceAddress: source)
+    }
+
+    public func readLenovoSetting(_ setting: LenovoPictureSetting) async -> Int? {
+        guard supportsLenovoSettings, isBound else { return nil }
+        return await read(vcp: setting.rawValue)?.current
+    }
+
+    public func setLenovoSetting(_ setting: LenovoPictureSetting, to value: Int) async -> Bool {
+        guard supportsLenovoSettings, isBound, setting.options.contains(where: { $0.code == value }) else {
+            return false
+        }
+        return await write(vcp: setting.rawValue, value)
+    }
+
+    private func writeLocked(vcp code: UInt8, _ value: Int, sourceAddress: UInt8) async -> Bool {
+        let packet = Self.setVCPPacket(vcp: code, value: value, sourceAddress: sourceAddress)
         await paceBus()
         let ok = i2cWrite(packet, UInt32(packet.count), source: UInt32(sourceAddress))
         markTransaction()
-        unlockBus()
         return ok
     }
 
@@ -341,7 +388,7 @@ public actor ExternalDisplayDDC {
     /// mixed HDMI/DP topologies, and IOKit-vs-CG ordering disagreements. Candidates without
     /// attributes score zero and the old order-based choice remains the fallback, so nothing that
     /// worked before stops working.
-    private static func avService(for displayID: CGDirectDisplayID) -> io_service_t? {
+    private static func avService(for displayID: CGDirectDisplayID) -> (io_service_t, Bool)? {
         var iterator = io_iterator_t()
         guard IORegistryCreateIterator(
             kIOMainPortDefault, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator
@@ -395,7 +442,12 @@ public actor ExternalDisplayDDC {
                                                 fallbackIndex: orderIndex) ?? 0
         let chosen = externals[index]
         for candidate in externals where candidate != chosen { IOObjectRelease(candidate) }
-        return chosen
+        // Require both vendor and product from the proxy itself for model-specific writes.
+        let modelIdentity = DDCServiceMatcher.Target(
+            vendorNumber: lenovoVendor, productNumber: legionY34wzProduct, serialNumber: 0)
+        let matchesModel = isLenovoY34wz(displayID)
+            && candidates[index].map { DDCServiceMatcher.score($0, against: modelIdentity) == 3 } == true
+        return (chosen, matchesModel)
     }
 
     /// The EDID-derived identity a display-service node advertises (`DisplayAttributes` →

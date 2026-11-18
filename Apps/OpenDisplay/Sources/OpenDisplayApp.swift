@@ -218,6 +218,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// revert completes; otherwise quit immediately. Gamma and the keep-awake assertion are also
     /// restored synchronously by `AppModel`'s `willTerminate` backstop.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        #if !PUBLIC_API_ONLY
+        model.stopStripLighting()
+        #endif
         guard model.needsQuitReversion else { return .terminateNow }
         Task {
             await model.teardownForQuit()

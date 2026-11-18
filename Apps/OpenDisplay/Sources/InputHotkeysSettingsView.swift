@@ -116,6 +116,13 @@ private struct AddInputHotkeySheet: View {
 
     private static let customInputTag = -1
 
+    private var inputOptions: [(name: String, code: Int)] {
+        if selectedCommand == .standard {
+            return model.inputs(for: externalDisplays.first { $0.recordID == selectedDisplayID })
+        }
+        return selectedCommand.inputs
+    }
+
     /// The value the binding will carry, or nil while a custom value doesn't parse as 0x00...0xFF.
     private var inputCode: Int? {
         guard selectedInputCode == Self.customInputTag else { return selectedInputCode }
@@ -165,7 +172,7 @@ private struct AddInputHotkeySheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Picker("Input", selection: $selectedInputCode) {
-                ForEach(selectedCommand.inputs, id: \.code) { input in
+                ForEach(inputOptions, id: \.code) { input in
                     Text(String(format: "%@ (0x%02X)", input.name, input.code)).tag(input.code)
                 }
                 Divider()
@@ -206,6 +213,11 @@ private struct AddInputHotkeySheet: View {
         .padding(ODSpacing.lg)
         .frame(width: 360)
         .onAppear { selectedDisplayID = externalDisplays.first?.recordID }
+        .onChange(of: inputOptions.map(\.code)) { _, codes in
+            if selectedInputCode != Self.customInputTag, !codes.contains(selectedInputCode), let first = codes.first {
+                selectedInputCode = first
+            }
+        }
     }
 
     private func addBinding() {

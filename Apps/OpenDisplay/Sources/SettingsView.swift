@@ -434,33 +434,6 @@ private struct HealthSection: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                Toggle(isOn: Binding(
-                    get: { model.settings.updateCheckEnabled },
-                    set: { model.setUpdateCheckEnabled($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Check for updates automatically")
-                        Text("Looks at the release feed about once a day and shows what it finds in the "
-                             + "menu. Nothing is downloaded until you say so, and the menu\u{2019}s "
-                             + "\u{201C}Check for Updates\u{2026}\u{201D} works either way.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Toggle(isOn: Binding(
-                    get: { model.settings.automaticUpdateDownloadEnabled },
-                    set: { model.setAutomaticUpdateDownloadEnabled($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Download and install updates automatically")
-                        Text("Installs a new release on its own and relaunches OpenDisplay into it. Every "
-                             + "download is checked against the project\u{2019}s signing key before it runs. "
-                             + "Needs the automatic check above.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .disabled(!model.settings.updateCheckEnabled)
-                .padding(.leading, ODSpacing.lg)
-
                 Divider()
 
                 Text("On-screen display").font(.title3)
@@ -729,7 +702,7 @@ private struct HealthSection: View {
 /// The rules that turn an XDR boost back off on their own, shown under the Labs toggle only while
 /// XDR Brightness is on — they are meaningless otherwise, and the Labs section is long enough.
 ///
-/// Indented under the feature they qualify, like the automatic-update row under its check toggle.
+/// Indented under the feature they qualify.
 /// The restore row is last and reads as the softener it is: it only ever undoes the three rules
 /// above it, and the auto-off timer deliberately isn't one of them.
 private struct XDRPowerAutomationRows: View {
@@ -800,8 +773,6 @@ private struct AboutSection: View {
             VStack(alignment: .leading, spacing: ODSpacing.md) {
                 ODCard {
                     AppIdentityRow()
-                    ODDivider()
-                    UpdateCheckRow()
                     ForEach(AboutView.projectLinks) { link in
                         ODDivider()
                         ProjectLinkRow(link: link)
@@ -818,7 +789,7 @@ private struct AboutSection: View {
 /// App icon, name, and running version/build — the same bundle-info source `AboutView` reads.
 private struct AppIdentityRow: View {
     var body: some View {
-        ODRow("OpenDisplay", secondary: "Version \(AboutView.version) (build \(AboutView.build))") {
+        ODRow("OpenDisplay Lenovo", secondary: "Version \(AboutView.version) (build \(AboutView.build))") {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable().frame(width: 28, height: 28)
                 .accessibilityHidden(true)
@@ -826,17 +797,6 @@ private struct AppIdentityRow: View {
             EmptyView()
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// The check-for-updates affordance, reusing the same `UpdateCheckStatusView` the About window shows.
-private struct UpdateCheckRow: View {
-    var body: some View {
-        ODRow("Updates") {
-            EmptyView()
-        } trailing: {
-            UpdateCheckStatusView()
-        }
     }
 }
 

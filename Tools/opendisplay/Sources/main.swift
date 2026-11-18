@@ -819,6 +819,71 @@ func runDDC() async {
     }
 }
 
+/// Model-specific operations share the same guarded provider as the settings cards.
+func runLenovo() async {
+    let usage = "usage: opendisplay lenovo <selector> status|lighting-status|color <RRGGBB or six comma-separated colors> [0–100]|effect <name>|dcr <on|off>"
+    guard let sel = selectorArg, let action = valueArg, flags.isSubset(of: ["--dry-run"]) else { fail(usage) }
+    let target = uniqueDisplay(sel, in: await resolveCurrentDisplays(), managedOffline: managedOfflineIDs)
+    guard let cgID = target.observation.cgDisplayID, ExternalDisplayDDC.isLenovoY34wz(cgID) else {
+        fail("Select a Lenovo Y34wz-30 display")
+    }
+    switch action {
+    case "lighting-status":
+        guard positional.count == 3, flags.isEmpty else { fail(usage) }
+        do {
+            try await LenovoStripLighting.shared.check(displayID: cgID)
+            print("Y34wz-30 USB lighting controller available (feature 0x72, 168 bytes).")
+        } catch { fail(error.localizedDescription) }
+        return
+    case "color":
+        guard (4...5).contains(positional.count),
+              let brightness = Int(positional.count == 5 ? positional[4] : "100") else { fail(usage) }
+        let hexColors = positional[3].components(separatedBy: ",")
+        let colors = hexColors.compactMap(LenovoStripPalette.RGB.init(hex:))
+        guard colors.count == hexColors.count, let palette = LenovoStripPalette(colors: colors, brightness: brightness) else {
+            fail(usage)
+        }
+        if dryRun {
+            print("USB HID feature report (dry run): " + palette.featureReport.map { String(format: "%02x", $0) }.joined())
+            return
+        }
+        do {
+            try await LenovoStripLighting.shared.apply(palette, to: cgID)
+            print("Strip colors sent. Check the monitor’s light strip.")
+        } catch { fail(error.localizedDescription) }
+        return
+    default: break
+    }
+    guard let controller = ExternalDisplayDDC(displayID: cgID) else { fail("Y34wz-30 DDC connection required") }
+    if action == "status", positional.count == 3 {
+        for setting in LenovoPictureSetting.allCases {
+            let v = await controller.readLenovoSetting(setting)
+            print("\(setting.label): \(v.flatMap { value in setting.options.first { $0.code == value }?.label } ?? v.map(String.init) ?? "unavailable")")
+        }
+        return
+    }
+    guard positional.count == 4 else { fail(usage) }
+    let value = positional[3]
+    switch action {
+    case "effect":
+        guard let effect = ExternalDisplayDDC.LenovoAmbientLightEffect.allCases.first(where: {
+            $0.label.lowercased() == value.lowercased()
+        }) else { fail("unknown effect") }
+        if dryRun { print("Would send \(effect.label)"); return }
+        guard await controller.setLenovoAmbientLight(effect) else { fail("effect write failed") }
+    case "dcr":
+        guard ["on", "off"].contains(value) else { fail(usage) }
+        if dryRun { print("Would set dynamic contrast \(value)"); return }
+        let expected = value == "on" ? 1 : 0
+        guard await controller.setLenovoSetting(.dynamicContrast, to: expected),
+              await controller.readLenovoSetting(.dynamicContrast) == expected else { fail("dynamic contrast not confirmed") }
+        print("Dynamic contrast \(value) confirmed")
+        return
+    default: fail(usage)
+    }
+    print("Sent. Check the monitor's light strip for the visible result.")
+}
+
 func runEDID() async {
     guard let sel = selectorArg else { fail("usage: opendisplay edid <selector> [--out <path.bin>]") }
     let pairs = await resolveCurrentDisplays()
@@ -1229,6 +1294,7 @@ case "scene": await runScene()
 case "layout": await runLayout()
 case "group": await runGroup()
 case "brightness": await runBrightness()
+case "lenovo": await runLenovo()
 case "ddc": await runDDC()
 case "edid": await runEDID()
 case "favorite", "favourite": await runFavorite()
@@ -1257,6 +1323,7 @@ case "help", "--help", "-h":
       opendisplay ddc <selector> <brightness|contrast|volume|input|colour|sharpness|red|green|blue|mute|power|caps> [value]
       opendisplay ddc <selector> reset                # restore the monitor's factory defaults (VCP 0x04)
       opendisplay ddc <selector> vcp <0xNN> [value]   # any raw MCCS feature code
+      opendisplay lenovo <selector> status|lighting-status|color <RRGGBB or six comma-separated colors> [0–100]|effect <name>|dcr <on|off> [--dry-run]
       opendisplay edid <selector> [--out <path.bin>]
       opendisplay favorite <list|set|unset> <selector> [WxH[@Hz][@2x]]
 

@@ -161,9 +161,18 @@ final class AppModel: ObservableObject {
     /// live code too, so a non-standard panel is still legible.
     static let standardInputs = InputSwitchCommand.standardInputs
 
+    func inputs(for observation: DisplayObservation?) -> [(name: String, code: Int)] {
+        #if !PUBLIC_API_ONLY
+        if let id = observation?.cgDisplayID, ExternalDisplayDDC.isLenovoY34wz(id) {
+            return [("HDMI 1", 0x11), ("HDMI 2", 0x12), ("DisplayPort", 0x0F), ("USB-C", 0x31), ("Automatic", 0xFE)]
+        }
+        #endif
+        return Self.standardInputs
+    }
+
     /// Human label for a DDC input code, or "Code N" if non-standard.
-    func inputName(_ code: Int) -> String {
-        Self.standardInputs.first { $0.code == code }?.name ?? "Code \(code)"
+    func inputName(_ code: Int, for observation: DisplayObservation) -> String {
+        inputs(for: observation).first { $0.code == code }?.name ?? "Code \(code)"
     }
 
     /// A display OpenDisplay turned off — remembered (and persisted) so it stays visible and
@@ -290,13 +299,6 @@ final class AppModel: ObservableObject {
     /// On-disk managed-offline list, shared with the CLI (see `ManagedOfflineStore`).
     private let managedOfflineStore: ManagedOfflineStore?
 
-    /// Sparkle-backed one-click updater (check → download → verify → install → relaunch). Held for the
-    /// lifetime of the app because Sparkle references its delegates weakly.
-    private let softwareUpdater: SoftwareUpdater
-    /// What the update affordances (menu row, About window) should currently say. Mirrored from the
-    /// updater so the views observe one published property instead of two objects.
-    @Published private(set) var updatePhase: SoftwareUpdatePhase = .idle
-
     /// Live "Keep these settings?" prompt for an arrangement-altering change (Issue 6), or nil when no
     /// revert window is open. Drives the countdown banner; the UI calls `confirmArrangementChange()` /
     /// `revertArrangementChange()`.
@@ -389,14 +391,6 @@ final class AppModel: ObservableObject {
         self.favorites = favoritesStore?.load() ?? FavoriteResolutions()
         self.managedOfflineStore =
             (try? ManagedOfflineStore.defaultDirectory()).map(ManagedOfflineStore.init(directory:))
-        // Start Sparkle with the user's saved preferences already in place: its first scheduled cycle
-        // begins on the next runloop pass, so applying them later would let one check slip through
-        // against the wrong settings.
-        self.softwareUpdater = SoftwareUpdater(behavior: AppModel.automaticUpdateBehavior(for: settings))
-        softwareUpdater.onPhaseChange = { [weak self] phase in self?.updatePhase = phase }
-        softwareUpdater.onAutomaticDownloadPreferenceChange = { [weak self] enabled in
-            self?.setAutomaticUpdateDownloadEnabled(enabled)
-        }
         // Register the configurable global hotkeys (Batch-2 #4). Reconnect-All is always-available
         // (recovery hierarchy step 3) and reachable even when the menu bar isn't; the rest are unbound
         // by default. A chord that can't be claimed is simply skipped (menu-bar item remains).
@@ -1180,6 +1174,14 @@ final class AppModel: ObservableObject {
             attempts += 1
         }
         displays = snapshot.observations.sorted { $0.recordID.rawValue < $1.recordID.rawValue }
+        #if !PUBLIC_API_ONLY
+        for (record, controller) in stripLightingByDisplay where !displays.contains(where: {
+            $0.recordID == record && $0.isActive && $0.cgDisplayID == controller.displayID
+        }) {
+            controller.stop()
+            stripLightingByDisplay.removeValue(forKey: record)
+        }
+        #endif
         pruneControlCaches(to: Set(displays.map(\.recordID)))
         #if !PUBLIC_API_ONLY
         reconcileGroupBrightnessLoop()
@@ -1800,6 +1802,36 @@ final class AppModel: ObservableObject {
     func ddcControl(_ control: HardwareControl, for observation: DisplayObservation) -> Float? {
         ddcControlLevel[observation.recordID]?[control.vcp]
     }
+
+    #if !PUBLIC_API_ONLY
+    private var stripLightingByDisplay: [DisplayRecordID: LenovoLightingController] = [:]
+
+    func stripLighting(for display: DisplayObservation) -> LenovoLightingController? {
+        guard display.isActive, let id = display.cgDisplayID, ExternalDisplayDDC.isLenovoY34wz(id) else { return nil }
+        if let cached = stripLightingByDisplay[display.recordID], cached.displayID == id { return cached }
+        let lighting = LenovoLightingController(displayID: id, recordID: display.recordID, checkUSB: {
+            try await LenovoStripLighting.shared.check(displayID: id)
+        }, openWriter: { [weak self] in
+            guard let self, self.displays.contains(where: {
+                $0.recordID == display.recordID && $0.cgDisplayID == id && $0.isActive
+            }) else { throw LenovoStripLighting.Failure.displayUnavailable }
+            let writer = try await LenovoStripLighting.shared.openWriter(for: id)
+            return { palette in try await writer.write(palette) }
+        })
+        stripLightingByDisplay[display.recordID] = lighting
+        return lighting
+    }
+
+    func stopStripLighting() {
+        for controller in stripLightingByDisplay.values { controller.stop() }
+    }
+
+    func lenovoController(for observation: DisplayObservation) async -> ExternalDisplayDDC? {
+        guard let current = displays.first(where: { $0.recordID == observation.recordID && $0.isActive }),
+              let cgID = current.cgDisplayID, ExternalDisplayDDC.isLenovoY34wz(cgID) else { return nil }
+        return await ddcController(for: current)
+    }
+    #endif
 
     /// Forgets the DDC negative-probe cache for one display (or all). Called when the world may have
     /// changed under the cache — a topology event (hotplug, wake, monitor power-cycle) or the user
@@ -3595,44 +3627,6 @@ final class AppModel: ObservableObject {
         reconcileDisplaySleepGuard()
     }
 
-    /// Toggle for "check for updates automatically". Also re-applies the pair to Sparkle, which
-    /// re-schedules its own cycle shortly afterwards.
-    func setUpdateCheckEnabled(_ enabled: Bool) {
-        guard settings.updateCheckEnabled != enabled else { return }
-        settings.updateCheckEnabled = enabled
-        persistSettings()
-        reconcileAutomaticUpdates()
-    }
-
-    /// Toggle for "download and install updates automatically" (opt-in). Inert while automatic checks
-    /// are off — the policy decides that, so the setting is remembered rather than silently rewritten.
-    func setAutomaticUpdateDownloadEnabled(_ enabled: Bool) {
-        guard settings.automaticUpdateDownloadEnabled != enabled else { return }
-        settings.automaticUpdateDownloadEnabled = enabled
-        persistSettings()
-        reconcileAutomaticUpdates()
-    }
-
-    /// The one action behind every update affordance: Sparkle checks, downloads, verifies the EdDSA
-    /// signature, installs, and relaunches — the app only asks it to start.
-    func checkForUpdates() {
-        softwareUpdater.checkForUpdates()
-    }
-
-    private func reconcileAutomaticUpdates() {
-        softwareUpdater.apply(Self.automaticUpdateBehavior(for: settings))
-    }
-
-    /// The two update settings as the one value Sparkle is configured from — used at launch (before
-    /// `self` exists) and on every toggle, so both paths can't disagree.
-    private static func automaticUpdateBehavior(
-        for settings: OpenDisplaySettings
-    ) -> AutomaticUpdateBehavior {
-        SoftwareUpdatePolicy.automaticBehavior(
-            checkEnabled: settings.updateCheckEnabled,
-            downloadEnabled: settings.automaticUpdateDownloadEnabled)
-    }
-
     /// Acquire or release the keep-awake assertion for the current (toggle, external-presence) state.
     /// Idempotent — safe to call on every topology change and every settings change.
     private func reconcileDisplaySleepGuard() {
@@ -3771,6 +3765,9 @@ final class AppModel: ObservableObject {
             center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil,
                                queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
+                    #if !PUBLIC_API_ONLY
+                    self?.stopStripLighting()
+                    #endif
                     self?.isBetweenSleepAndWake = true
                     self?.logDisplayEvent("sleep")
                 }
@@ -3859,6 +3856,7 @@ final class AppModel: ObservableObject {
         offlineIntentRecheck.cancel()
         layoutProtectionRecheck.cancel()
         #if !PUBLIC_API_ONLY
+        stopStripLighting()
         reconcileAdaptiveLoop()
         reconcileGroupBrightnessLoop()
         reconcileAppPresetObserver()

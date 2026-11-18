@@ -215,7 +215,7 @@ targets:
 
   # --- Automation CLI ---
   # A command-line tool is not a bundle, so it can't embed frameworks. We link the dynamic core
-  # frameworks (embed: false) and add @executable_path / @loader_path to the runtime search path so
+  # frameworks (embed: false) and add @executable_path to the runtime search path so
   # the tool resolves them from the build-products dir (where they sit beside the executable). The
   # frameworks' install names are @rpath/<Name>.framework/Versions/A/<Name>.
   opendisplay:
@@ -227,7 +227,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Apps/OpenDisplay/Resources/OpenDisplay.entitlements
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path"
-          - "@loader_path"
           # Bundled at OpenDisplay.app/Contents/Helpers, the embedded frameworks are in ../Frameworks.
           - "@executable_path/../Frameworks"
     dependencies:

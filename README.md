@@ -28,6 +28,8 @@ brew install guydada/display/opendisplay-lenovo
 open "$(brew --prefix opendisplay-lenovo)/libexec/OpenDisplay Lenovo.app"
 ```
 
+If you are moving from the upstream Homebrew cask, first verify that the fork opens. Then run `brew uninstall --cask aquitaine/tap/opendisplay` to remove the previous app. A normal uninstall preserves the shared settings. The cask’s `--zap` option deletes them.
+
 The formula also installs the `opendisplay-lenovo` CLI. These commands check the USB connection and preview a color report without changing the strip. Use the Lenovo selector from `opendisplay-lenovo list` if it is a secondary display.
 
 ```sh
